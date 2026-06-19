@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Bot State and Memories
+bot_state*.json
+bot_state*.json.tmp
+
+# Logs
+logs/
+*.log
+*.txt
+
+# Caches and Data
+data/ff_calendar_cache.json
+.gemini/
+
+# Virtual Environments
+venv/
+env/
+ENV/
+
+# OS Files
+.DS_Store
+Thumbs.db
