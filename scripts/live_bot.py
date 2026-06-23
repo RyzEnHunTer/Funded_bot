@@ -318,13 +318,13 @@ def run_bot(state, login, balance):
                         for t_str, mgr in list(state.managed_positions.items()):
                             if mgr['pair'] == pair and mgr.get('breakeven_locked', False):
                                 if mgr['direction'] == 1 and prob_short >= EXHAUSTION_ML_FLIP_THRESHOLD and current_price > mgr['entry_price']:
-                                    state.log_event(f"🧠 [BRAIN] ML FLIP EXIT: Closing LONG {pair} (prob_short={prob_short:.2%})")
-                                    state.managed_positions[t_str]['pending_reason'] = "ml_flip_exit"
-                                    close_position(int(t_str))
+                                    if close_position(int(t_str)):
+                                        state.log_event(f"🧠 [BRAIN] ML FLIP EXIT: Closing LONG {pair} (prob_short={prob_short:.2%})")
+                                        state.update_position(int(t_str), 'pending_reason', 'ml_flip_exit')
                                 elif mgr['direction'] == -1 and prob_long >= EXHAUSTION_ML_FLIP_THRESHOLD and current_price < mgr['entry_price']:
-                                    state.log_event(f"🧠 [BRAIN] ML FLIP EXIT: Closing SHORT {pair} (prob_long={prob_long:.2%})")
-                                    state.managed_positions[t_str]['pending_reason'] = "ml_flip_exit"
-                                    close_position(int(t_str))
+                                    if close_position(int(t_str)):
+                                        state.log_event(f"🧠 [BRAIN] ML FLIP EXIT: Closing SHORT {pair} (prob_long={prob_long:.2%})")
+                                        state.update_position(int(t_str), 'pending_reason', 'ml_flip_exit')
                         
                         st_dir = get_supertrend_direction(df).iloc[-1]
                         
@@ -524,10 +524,11 @@ def run_bot(state, login, balance):
                                 state.log_event(f"🚨 EMERGENCY KILL SWITCH TRIGGERED! Live equity (${equity:,.2f}) dropped below the Death Line (${death_line:,.2f}). All positions closed. Bot locked until tomorrow.")
                                 
                         # 2. Friday Flatten Check
-                        if now.weekday() == 4 and now.hour >= 23 and now.minute >= 30:
+                        now_utc = datetime.now(timezone.utc)
+                        if now_utc.weekday() == 4 and now_utc.hour >= 20 and now_utc.minute >= 45:
                             if get_open_positions_count() > 0:
                                 close_all_positions()
-                                state.log_event("🛑 FRIDAY FLATTEN EXECUTED: All positions closed for the weekend (11:30 PM IST).")
+                                state.log_event("🛑 FRIDAY FLATTEN EXECUTED: All positions closed to avoid Weekend Gap risk (20:45 UTC).")
                         
                     if state.config.get("locked_out_for_day", False):
                         print(f"[{now.strftime('%H:%M:%S')}] 🚨 KILL SWITCH ACTIVE. Waiting for midnight.", end="\r")
