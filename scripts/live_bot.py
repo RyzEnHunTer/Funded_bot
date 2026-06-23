@@ -26,8 +26,27 @@ from config.settings import (
 from data.mt5_loader import initialize_mt5, get_mt5_data
 from strategy.mt5_executor import execute_trade, close_all_positions, scale_out_position, modify_sl_tp, close_position
 from ml.features import compute_all_features, get_supertrend_direction
-from ml.predictor import MLPredictor
+from model.ml_predictor import MLPredictor
 from risk.session_filter import SessionFilter
+import requests
+from email.utils import parsedate_to_datetime
+
+# Initialize components
+session_filter = SessionFilter()
+
+def get_reliable_utc_time():
+    """Fetches the exact global UTC time directly from Google's servers. 
+    Bypasses the local computer clock to prevent time drift bugs."""
+    try:
+        # Extremely fast, highly available request
+        response = requests.head("https://www.google.com", timeout=3)
+        date_str = response.headers.get('Date')
+        if date_str:
+            return parsedate_to_datetime(date_str)
+    except Exception:
+        pass
+    # Fallback to local system clock if network is unreachable
+    return datetime.now(timezone.utc)
 from risk.state_manager import BotState
 from risk.news_filter import NewsFilter
 from strategy.position_sizer import calculate_position_size
@@ -524,7 +543,7 @@ def run_bot(state, login, balance):
                                 state.log_event(f"🚨 EMERGENCY KILL SWITCH TRIGGERED! Live equity (${equity:,.2f}) dropped below the Death Line (${death_line:,.2f}). All positions closed. Bot locked until tomorrow.")
                                 
                         # 2. Friday Flatten Check
-                        now_utc = datetime.now(timezone.utc)
+                        now_utc = get_reliable_utc_time()
                         if now_utc.weekday() == 4 and now_utc.hour >= 20 and now_utc.minute >= 45:
                             if get_open_positions_count() > 0:
                                 close_all_positions()
