@@ -110,8 +110,9 @@ class BotState:
             print(f"Error saving state: {e}")
 
     def check_midnight_reset(self, current_balance: float = 0.0) -> bool:
-        """Resets the daily trade governor and Kill Switch if it's a new day."""
-        current_date = datetime.now().strftime("%Y-%m-%d")
+        """Resets the daily trade governor and Kill Switch if it's a new UTC day."""
+        from datetime import datetime, timezone
+        current_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         if self.last_trade_date != current_date:
             self.last_trade_date = current_date
             self.daily_trades_count = 0

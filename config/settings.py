@@ -112,6 +112,11 @@ REWARD_RISK_RATIO  = 5.0     # Take-profit = SL distance * this (Massive safety 
 ATR_MULTIPLIER     = 1.5     # Stop-loss = ATR * this
 SIGNAL_COOLDOWN    = 1       # Minimum bars between new trades (reduced)
 
+# ─── Exhaustion Detection ──────────────────────────────────────────────────
+EXHAUSTION_ML_FLIP_THRESHOLD = 0.45
+EXHAUSTION_TP_LOCK_PCT       = 0.85
+EXHAUSTION_LOCK_PROFIT_PCT   = 0.70
+
 # ─── Risk Management ─────────────────────────────────────────────────────────
 
 RISK_PER_TRADE_PCT = 0.012   # 1.2% of account per trade (Safe for 4% daily loss)

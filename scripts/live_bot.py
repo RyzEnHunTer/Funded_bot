@@ -19,10 +19,12 @@ import MetaTrader5 as mt5
 from config.settings import (
     PRIMARY_TIMEFRAME, ATR_MULTIPLIER, REWARD_RISK_RATIO, 
     ML_LONG_THRESHOLD, ML_SHORT_THRESHOLD, INITIAL_BALANCE, 
-    RISK_PER_TRADE_PCT, MAX_CONCURRENT_POSITIONS, MAX_TRADES_PER_DAY
+    RISK_PER_TRADE_PCT, MAX_CONCURRENT_POSITIONS, MAX_TRADES_PER_DAY,
+    EXHAUSTION_ML_FLIP_THRESHOLD, EXHAUSTION_TP_LOCK_PCT, EXHAUSTION_LOCK_PROFIT_PCT,
+    PIP_SIZES
 )
 from data.mt5_loader import initialize_mt5, get_mt5_data
-from strategy.mt5_executor import execute_trade, close_all_positions, scale_out_position, modify_sl_tp
+from strategy.mt5_executor import execute_trade, close_all_positions, scale_out_position, modify_sl_tp, close_position
 from ml.features import compute_all_features, get_supertrend_direction
 from ml.predictor import MLPredictor
 from risk.session_filter import SessionFilter
@@ -133,6 +135,9 @@ def settings_menu(state, balance):
 
 
 def main_menu():
+    from scripts.dashboard_server import start_dashboard_server
+    _, public_url = start_dashboard_server()
+    
     print("\nConnecting to MT5...")
     if not initialize_mt5():
         print("Failed to initialize MT5. Ensure terminal is open and Algo Trading is allowed.")
@@ -151,6 +156,9 @@ def main_menu():
     
     if state.config["starting_balance"] == 0.0:
         setup_wizard(state, balance)
+        
+    if public_url:
+        state.log_event(f"🌍 **Live Dashboard Online:** {public_url}")
         
     while True:
         # Refresh balance for menu display
@@ -209,7 +217,7 @@ def main_menu():
 
 
 def run_bot(state, login, balance):
-    pairs = ["USDCAD", "EURUSD", "NQ=F"]
+    pairs = ["USDCAD", "EURUSD", "USDJPY"]
     session_filter = SessionFilter(require_overlap_only=False)
     news_filter = NewsFilter()
     
@@ -255,6 +263,13 @@ def run_bot(state, login, balance):
                     time.sleep(60)
                     continue
                     
+                # Rollover Embargo Check (21:50 to 22:10 UTC)
+                now_utc = datetime.now(timezone.utc)
+                if (now_utc.hour == 21 and now_utc.minute >= 50) or (now_utc.hour == 22 and now_utc.minute <= 10):
+                    print(f"[{now.strftime('%H:%M:%S')}] 🛑 ROLLOVER EMBARGO: Spreads widening. Skipping scan.", end="\r")
+                    time.sleep(60)
+                    continue
+                    
                 print(f"\n[{now.strftime('%H:%M:%S')}] 🔄 NEW 15m CANDLE FORMED: Scanning markets...")
                 
                 # Check global position limit
@@ -278,6 +293,15 @@ def run_bot(state, login, balance):
                         current_time = df.index[-1]
                         current_price = df['close'].iloc[-1]
                         
+                        # Max Spread Check
+                        tick = mt5.symbol_info_tick(pair)
+                        if tick:
+                            spread = tick.ask - tick.bid
+                            pip_size = PIP_SIZES.get(pair, 0.0001)
+                            if spread > 5.0 * pip_size:
+                                print(f"  Skipping {pair}: Spread too high ({spread/pip_size:.1f} pips)")
+                                continue
+                        
                         # Session Filter (pass symbol for indices support)
                         if state.config.get("use_session_filter", True):
                             if not session_filter.is_tradeable(current_time, symbol=pair):
@@ -289,6 +313,18 @@ def run_bot(state, login, balance):
                         
                         prob_long = probas_df['prob_1'].iloc[0] if 'prob_1' in probas_df else 0.0
                         prob_short = probas_df['prob_-1'].iloc[0] if 'prob_-1' in probas_df else 0.0
+                        
+                        # ─── Exhaustion #1: ML Flip Brain ───
+                        for t_str, mgr in list(state.managed_positions.items()):
+                            if mgr['pair'] == pair and mgr.get('breakeven_locked', False):
+                                if mgr['direction'] == 1 and prob_short >= EXHAUSTION_ML_FLIP_THRESHOLD and current_price > mgr['entry_price']:
+                                    state.log_event(f"🧠 [BRAIN] ML FLIP EXIT: Closing LONG {pair} (prob_short={prob_short:.2%})")
+                                    state.managed_positions[t_str]['pending_reason'] = "ml_flip_exit"
+                                    close_position(int(t_str))
+                                elif mgr['direction'] == -1 and prob_long >= EXHAUSTION_ML_FLIP_THRESHOLD and current_price < mgr['entry_price']:
+                                    state.log_event(f"🧠 [BRAIN] ML FLIP EXIT: Closing SHORT {pair} (prob_long={prob_long:.2%})")
+                                    state.managed_positions[t_str]['pending_reason'] = "ml_flip_exit"
+                                    close_position(int(t_str))
                         
                         st_dir = get_supertrend_direction(df).iloc[-1]
                         
@@ -432,14 +468,41 @@ def run_bot(state, login, balance):
                                     except Exception as e:
                                         pass # Ignore temporary fetch errors during trailing
                                         
+                                # 3. Exhaustion #2: 90% TP Lock Ratchet
+                                if mgr.get('breakeven_locked', False) and pos.tp > 0:
+                                    total_tp_dist = abs(pos.tp - mgr['entry_price'])
+                                    current_move = (current_price - mgr['entry_price']) * mgr['direction']
+                                    if total_tp_dist > 0 and current_move > 0:
+                                        progress_pct = current_move / total_tp_dist
+                                        if progress_pct >= EXHAUSTION_TP_LOCK_PCT:
+                                            locked_move = current_move * EXHAUSTION_LOCK_PROFIT_PCT
+                                            if mgr['direction'] == 1:
+                                                new_sl = mgr['entry_price'] + locked_move
+                                                if new_sl > pos.sl:
+                                                    if modify_sl_tp(ticket, new_sl, pos.tp):
+                                                        state.log_event(f"🔒 90% TP LOCK: Ratcheted SL to {new_sl:.5f} for {pair} (Ticket: {ticket})")
+                                            else:
+                                                new_sl = mgr['entry_price'] - locked_move
+                                                if new_sl < pos.sl or pos.sl == 0:
+                                                    if modify_sl_tp(ticket, new_sl, pos.tp):
+                                                        state.log_event(f"🔒 90% TP LOCK: Ratcheted SL to {new_sl:.5f} for {pair} (Ticket: {ticket})")
+                                        
                         # Clean up managed positions that are no longer open
                         # and log them to the trade journal
                         for t in list(state.managed_positions.keys()):
                             if t not in active_tickets:
-                                # Position closed! Log it.
                                 pair = state.managed_positions[t]['pair']
-                                state.log_event(f"🔴 TRADE FINISHED: {pair} closed by MT5 (Ticket: {t}). Logged to permanent journal.")
-                                state.log_trade(int(t), now.strftime('%Y-%m-%dT%H:%M:%SZ'), "MT5 Closed")
+                                reason = state.managed_positions[t].get('pending_reason', "MT5 Closed")
+                                
+                                # Fetch final PnL from MT5 History
+                                history = mt5.history_deals_get(position=int(t))
+                                final_pnl = sum(deal.profit for deal in history) if history else 0.0
+                                
+                                pnl_str = f"+${final_pnl:.2f}" if final_pnl > 0 else f"-${abs(final_pnl):.2f}"
+                                emoji = "🟢" if final_pnl > 0 else ("🔴" if final_pnl < 0 else "⚪")
+                                
+                                state.log_event(f"{emoji} TRADE FINISHED: {pair} closed ({reason}) | P&L: {pnl_str} | Ticket: {t}")
+                                state.log_trade(int(t), now.strftime('%Y-%m-%dT%H:%M:%SZ'), reason, final_pnl)
 
                 # Print a heartbeat every minute so the user knows it's not frozen
                 if now.second == 0:

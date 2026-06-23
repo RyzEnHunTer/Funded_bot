@@ -61,6 +61,13 @@ def close_all_positions(symbol: str = None):
             
     return closed
 
+def close_position(ticket: int) -> bool:
+    """Close a specific open position completely."""
+    pos = mt5.positions_get(ticket=ticket)
+    if not pos or len(pos) == 0:
+        return False
+    return scale_out_position(ticket, pos[0].volume)
+
 def execute_trade(symbol: str, signal: str, lots: float, sl: float, tp: float, magic_number: int = 123456):
     """
     Send a market order to MT5.
@@ -142,11 +149,19 @@ def execute_trade(symbol: str, signal: str, lots: float, sl: float, tp: float, m
         print(f"Order Check Failed: Unsupported filling mode or invalid parameters.")
         return None
         
-    # Send the order
-    result = mt5.order_send(valid_request)
+    # Send the order with Retries
+    import time
+    max_retries = 3
+    result = None
+    for attempt in range(max_retries):
+        result = mt5.order_send(valid_request)
+        if result.retcode == mt5.TRADE_RETCODE_DONE:
+            break
+        print(f"Order Send Failed (Attempt {attempt+1}/{max_retries}): {result.comment} (Code: {result.retcode})")
+        time.sleep(1)
     
     if result.retcode != mt5.TRADE_RETCODE_DONE:
-        print(f"Order Send Failed: {result.comment}")
+        print("Final Order Send Failed after retries.")
         return None
         
     print(f"Order Placed Successfully: {result.order}")
@@ -202,13 +217,16 @@ def scale_out_position(ticket: int, lots_to_close: float) -> bool:
         print(f"Failed to scale out position {pos.ticket}: Unsupported filling mode")
         return False
     
-    result = mt5.order_send(valid_request)
-    if result.retcode == mt5.TRADE_RETCODE_DONE:
-        print(f"Successfully scaled out {lots_to_close} lots from position {ticket}")
-        return True
-    else:
-        print(f"Failed to scale out position {ticket}: {result.comment}")
-        return False
+    max_retries = 3
+    for attempt in range(max_retries):
+        result = mt5.order_send(valid_request)
+        if result.retcode == mt5.TRADE_RETCODE_DONE:
+            print(f"Successfully scaled out {lots_to_close} lots from position {ticket}")
+            return True
+        time.sleep(1)
+        
+    print(f"Failed to scale out position {ticket}: {result.comment}")
+    return False
 
 def modify_sl_tp(ticket: int, new_sl: float, new_tp: float) -> bool:
     """Modify the SL and TP of an open position."""
@@ -227,9 +245,13 @@ def modify_sl_tp(ticket: int, new_sl: float, new_tp: float) -> bool:
         "magic": 123456,
     }
     
-    result = mt5.order_send(request)
-    if result.retcode == mt5.TRADE_RETCODE_DONE:
-        return True
-    else:
-        print(f"Failed to modify SL/TP for {ticket}: {result.comment}")
-        return False
+    max_retries = 3
+    for attempt in range(max_retries):
+        result = mt5.order_send(request)
+        if result.retcode == mt5.TRADE_RETCODE_DONE:
+            return True
+        import time
+        time.sleep(1)
+        
+    print(f"Failed to modify SL/TP for {ticket}: {result.comment}")
+    return False

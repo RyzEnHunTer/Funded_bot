@@ -3,143 +3,114 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Prop Firm ML Trading System - Performance Dashboard</title>
-    <meta name="description" content="Real-time performance dashboard for ML-powered Forex trading system targeting prop firm challenges">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <title>Antigravity Live Command Center</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Inter:wght@400;500&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <div class="glow-bg"></div>
     <div class="dashboard">
         <!-- Header -->
-        <header class="header" id="header">
-            <div class="header-left">
-                <div class="logo">
-                    <div class="logo-icon">
-                        <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-                            <path d="M14 2L26 8V20L14 26L2 20V8L14 2Z" stroke="url(#grad1)" stroke-width="2" fill="none"/>
-                            <path d="M14 8L20 11V17L14 20L8 17V11L14 8Z" fill="url(#grad1)" opacity="0.3"/>
-                            <path d="M8 14L14 8L20 14L14 20Z" fill="url(#grad1)" opacity="0.6"/>
-                            <defs>
-                                <linearGradient id="grad1" x1="0" y1="0" x2="28" y2="28">
-                                    <stop offset="0%" stop-color="#6366f1"/>
-                                    <stop offset="100%" stop-color="#8b5cf6"/>
-                                </linearGradient>
-                            </defs>
-                        </svg>
-                    </div>
-                    <div>
-                        <h1 class="logo-text">Forex ML Engine</h1>
-                        <span class="logo-sub">Prop Firm Challenge Tracker</span>
-                    </div>
+        <header class="header">
+            <div class="logo-area">
+                <div class="logo-orb"></div>
+                <div>
+                    <h1 class="logo-text">HUNTER</h1>
+                    <span class="logo-sub">PROP FIRM TRADING ENGINE</span>
                 </div>
             </div>
-            <div class="header-right">
-                <div class="status-badge" id="challengeStatus">
-                    <span class="status-dot"></span>
-                    <span class="status-text">Loading...</span>
+            <div class="status-area">
+                <div class="live-indicator">
+                    <span class="pulse-dot"></span> LIVE
                 </div>
-                <div class="pair-badge" id="pairBadge">--</div>
+                <div class="phase-badge" id="phaseBadge">LOADING</div>
             </div>
         </header>
 
-        <!-- Metrics Cards -->
-        <section class="metrics-grid" id="metricsGrid">
-            <div class="metric-card accent-profit" id="cardReturn">
-                <div class="metric-label">Total Return</div>
-                <div class="metric-value" id="metricReturn">--</div>
-                <div class="metric-sub" id="metricPnl">--</div>
+        <!-- Metrics Grid -->
+        <section class="metrics-grid">
+            <div class="metric-card glass">
+                <div class="metric-label">Account Balance</div>
+                <div class="metric-value" id="valBalance">--</div>
+                <div class="metric-sub">Daily Trades: <span id="valDailyTrades">--</span>/3</div>
             </div>
-            <div class="metric-card accent-info" id="cardWinRate">
-                <div class="metric-label">Win Rate</div>
-                <div class="metric-value" id="metricWinRate">--</div>
-                <div class="metric-sub" id="metricTrades">--</div>
+            <div class="metric-card glass">
+                <div class="metric-label">Total Realized P&L</div>
+                <div class="metric-value" id="valPnl">--</div>
+                <div class="metric-sub" id="valWinRate">Win Rate: --</div>
             </div>
-            <div class="metric-card accent-warning" id="cardDrawdown">
-                <div class="metric-label">Max Drawdown</div>
-                <div class="metric-value" id="metricDrawdown">--</div>
-                <div class="metric-sub" id="metricDDLimit">/ 10.00%</div>
-            </div>
-            <div class="metric-card accent-purple" id="cardSharpe">
-                <div class="metric-label">Sharpe Ratio</div>
-                <div class="metric-value" id="metricSharpe">--</div>
-                <div class="metric-sub" id="metricPF">--</div>
-            </div>
-        </section>
-
-        <!-- Charts -->
-        <section class="charts-row">
-            <div class="chart-card chart-main" id="equityChartCard">
-                <div class="chart-header">
-                    <h2>Equity Curve</h2>
-                    <div class="chart-legend">
-                        <span class="legend-item"><span class="legend-dot dot-equity"></span>Equity</span>
-                        <span class="legend-item"><span class="legend-dot dot-baseline"></span>Baseline</span>
-                    </div>
-                </div>
-                <div class="chart-wrapper">
-                    <canvas id="equityChart"></canvas>
-                </div>
-            </div>
-            <div class="chart-card chart-side" id="drawdownChartCard">
-                <div class="chart-header">
-                    <h2>Drawdown</h2>
-                </div>
-                <div class="chart-wrapper">
-                    <canvas id="drawdownChart"></canvas>
+            <div class="metric-card glass">
+                <div class="metric-label">Prop Firm Target</div>
+                <div class="metric-value highlight" id="valProgress">--</div>
+                <div class="metric-sub" id="valProfitLeft" style="margin-bottom: 8px;">Profit Left: --</div>
+                <div class="progress-bar-bg">
+                    <div class="progress-bar-fill" id="progressFill" style="width: 0%;"></div>
                 </div>
             </div>
         </section>
 
-        <!-- Trade Details & Distribution -->
-        <section class="charts-row">
-            <div class="chart-card chart-side" id="tradeDistCard">
-                <div class="chart-header">
-                    <h2>Trade P&L Distribution</h2>
-                </div>
-                <div class="chart-wrapper">
-                    <canvas id="tradeDistChart"></canvas>
-                </div>
-            </div>
-            <div class="chart-card chart-main" id="tradeTableCard">
-                <div class="chart-header">
-                    <h2>Trade Log</h2>
-                    <div class="trade-summary" id="tradeSummary"></div>
+        <!-- Main Content -->
+        <div class="content-row">
+            <!-- Active Trades -->
+            <section class="active-trades-section glass panel">
+                <div class="panel-header">
+                    <h2>Active Positions</h2>
+                    <span class="badge" id="activeCount">0</span>
                 </div>
                 <div class="table-wrapper">
-                    <table class="trade-table" id="tradeTable">
+                    <table class="data-table">
                         <thead>
                             <tr>
-                                <th>#</th>
-                                <th>Direction</th>
+                                <th>Pair</th>
+                                <th>Type</th>
                                 <th>Entry</th>
-                                <th>Exit</th>
-                                <th>Lots</th>
-                                <th>P&L</th>
-                                <th>Pips</th>
-                                <th>Exit Reason</th>
-                                <th>Bars</th>
+                                <th>Vol</th>
+                                <th>Status</th>
                             </tr>
                         </thead>
-                        <tbody id="tradeTableBody"></tbody>
+                        <tbody id="activeTradesBody">
+                            <tr>
+                                <td colspan="5" class="empty-state">No active trades. Scanning markets...</td>
+                            </tr>
+                        </tbody>
                     </table>
                 </div>
+            </section>
+
+            <!-- Trade History -->
+            <section class="history-section glass panel">
+                <div class="panel-header">
+                    <h2>Recent History</h2>
+                    <span class="badge" id="historyCount">0</span>
+                </div>
+                <div class="table-wrapper">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Pair</th>
+                                <th>Result</th>
+                                <th>P&L</th>
+                                <th>Reason</th>
+                            </tr>
+                        </thead>
+                        <tbody id="historyBody">
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+        
+        <!-- Chart Row -->
+        <section class="chart-section glass panel">
+            <div class="panel-header">
+                <h2>Equity Curve (Realized)</h2>
+            </div>
+            <div class="chart-container">
+                <canvas id="equityChart"></canvas>
             </div>
         </section>
-
-        <!-- Compliance -->
-        <section class="compliance-section" id="complianceSection">
-            <h2>FTMO Challenge Compliance</h2>
-            <div class="compliance-grid" id="complianceGrid"></div>
-        </section>
-
-        <!-- Footer -->
-        <footer class="footer">
-            <span>Prop Firm ML Trading System</span>
-            <span id="generatedAt">--</span>
-        </footer>
     </div>
-
     <script src="app.js"></script>
 </body>
 </html>

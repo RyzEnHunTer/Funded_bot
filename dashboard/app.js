@@ -1,316 +1,206 @@
 /**
- * Prop Firm ML Trading System — Dashboard App
- * 
- * Loads results.json and renders interactive charts and metrics.
+ * Antigravity Live Dashboard JS
  */
 
-(async function () {
-    "use strict";
+let equityChart;
+let equityData = [];
+let timeData = [];
 
-    // ─── Load Data ──────────────────────────────────────────────────────
-    let data;
+async function fetchLiveState() {
     try {
-        const resp = await fetch("results.json");
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-        data = await resp.json();
-    } catch (err) {
-        document.body.innerHTML = `
-            <div style="display:flex;align-items:center;justify-content:center;height:100vh;
-                        font-family:Inter,sans-serif;color:#94a3b8;background:#0a0e1a;flex-direction:column;gap:16px;">
-                <h1 style="font-size:24px;color:#f1f5f9;">No Results Found</h1>
-                <p>Run the pipeline first: <code style="background:#1e293b;padding:4px 10px;border-radius:6px;">python scripts/run_pipeline.py</code></p>
-                <p style="font-size:13px;">Then export results to generate <code>results.json</code></p>
-            </div>`;
-        return;
+        const res = await fetch('/api/state');
+        if (!res.ok) throw new Error("Failed to fetch state");
+        const data = await res.json();
+        updateDashboard(data);
+    } catch (e) {
+        console.log("Waiting for bot to start...", e);
+        document.getElementById('phaseBadge').textContent = "OFFLINE";
+        document.getElementById('phaseBadge').style.background = "rgba(239, 68, 68, 0.2)";
+        document.getElementById('phaseBadge').style.color = "#EF4444";
     }
+}
 
-    const m = data.metrics;
-    const eq = data.equity_curve;
-    const trades = data.trades;
+function updateDashboard(state) {
+    const config = state.config || {};
+    
+    // Status Badge
+    const badge = document.getElementById('phaseBadge');
+    badge.textContent = config.phase || "LIVE";
+    badge.style.background = "rgba(16, 185, 129, 0.2)";
+    badge.style.color = "var(--profit)";
 
-    // ─── Header ─────────────────────────────────────────────────────────
-    const statusEl = document.getElementById("challengeStatus");
-    const statusText = statusEl.querySelector(".status-text");
-    statusText.textContent = m.status;
-    if (m.status === "PASSED") statusEl.classList.add("passed");
-    else if (m.status === "FAILED") statusEl.classList.add("failed");
-    else statusEl.classList.add("progress");
+    // Top Metrics
+    const balance = config.starting_balance || 0;
+    const targetPct = config.profit_target_pct || 14.0;
+    
+    document.getElementById('valBalance').textContent = `$${balance.toLocaleString()}`;
+    document.getElementById('valDailyTrades').textContent = state.daily_trades_count || 0;
 
-    document.getElementById("pairBadge").textContent = `${data.pair} ${data.timeframe}`;
-    document.getElementById("generatedAt").textContent = `Generated: ${data.generated_at.split(".")[0]}`;
-
-    // ─── Metric Cards ───────────────────────────────────────────────────
-    const returnPct = m.return_pct;
-    document.getElementById("metricReturn").textContent = `${returnPct >= 0 ? "+" : ""}${returnPct.toFixed(2)}%`;
-    document.getElementById("metricPnl").textContent = `$${m.total_pnl.toLocaleString("en-US", { minimumFractionDigits: 2 })}`;
-
-    document.getElementById("metricWinRate").textContent = `${m.win_rate.toFixed(1)}%`;
-    document.getElementById("metricTrades").textContent = `${m.winners}W / ${m.losers}L (${m.trades} total)`;
-
-    document.getElementById("metricDrawdown").textContent = `${m.max_drawdown_pct.toFixed(2)}%`;
-    document.getElementById("metricDDLimit").textContent = `/ 10.00% limit`;
-
-    document.getElementById("metricSharpe").textContent = m.sharpe_ratio.toFixed(2);
-    document.getElementById("metricPF").textContent = `PF: ${m.profit_factor.toFixed(2)}`;
-
-    // ─── Equity Chart ───────────────────────────────────────────────────
-    if (eq.length > 0) {
-        const labels = eq.map(p => {
-            const d = new Date(p.time);
-            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-        });
-        const values = eq.map(p => p.equity);
-
-        // Downsample if too many points
-        const maxPoints = 500;
-        let dsLabels = labels, dsValues = values;
-        if (labels.length > maxPoints) {
-            const step = Math.ceil(labels.length / maxPoints);
-            dsLabels = labels.filter((_, i) => i % step === 0);
-            dsValues = values.filter((_, i) => i % step === 0);
-        }
-
-        new Chart(document.getElementById("equityChart"), {
-            type: "line",
-            data: {
-                labels: dsLabels,
-                datasets: [
-                    {
-                        label: "Equity",
-                        data: dsValues,
-                        borderColor: "#6366f1",
-                        backgroundColor: "rgba(99, 102, 241, 0.08)",
-                        fill: true,
-                        borderWidth: 2,
-                        pointRadius: 0,
-                        tension: 0.3,
-                    },
-                    {
-                        label: "Baseline",
-                        data: dsValues.map(() => m.initial_balance),
-                        borderColor: "rgba(148, 163, 184, 0.3)",
-                        borderDash: [6, 4],
-                        borderWidth: 1,
-                        pointRadius: 0,
-                        fill: false,
-                    },
-                ],
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                interaction: { intersect: false, mode: "index" },
-                plugins: {
-                    legend: { display: false },
-                    tooltip: {
-                        backgroundColor: "#1e293b",
-                        titleColor: "#f1f5f9",
-                        bodyColor: "#94a3b8",
-                        borderColor: "rgba(99,102,241,0.2)",
-                        borderWidth: 1,
-                        padding: 12,
-                        callbacks: {
-                            label: ctx => `$${ctx.raw.toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
-                        },
-                    },
-                },
-                scales: {
-                    x: {
-                        display: true,
-                        grid: { color: "rgba(99,102,241,0.06)" },
-                        ticks: { color: "#64748b", maxTicksLimit: 8, font: { size: 11 } },
-                    },
-                    y: {
-                        display: true,
-                        grid: { color: "rgba(99,102,241,0.06)" },
-                        ticks: {
-                            color: "#64748b",
-                            font: { size: 11 },
-                            callback: v => `$${(v / 1000).toFixed(0)}k`,
-                        },
-                    },
-                },
-            },
-        });
-
-        // ─── Drawdown Chart ─────────────────────────────────────────────
-        const peak = [];
-        let maxEq = values[0];
-        const ddPct = values.map(v => {
-            if (v > maxEq) maxEq = v;
-            peak.push(maxEq);
-            return -((maxEq - v) / maxEq) * 100;
-        });
-
-        let dsDd = ddPct;
-        if (ddPct.length > maxPoints) {
-            const step = Math.ceil(ddPct.length / maxPoints);
-            dsDd = ddPct.filter((_, i) => i % step === 0);
-        }
-
-        new Chart(document.getElementById("drawdownChart"), {
-            type: "line",
-            data: {
-                labels: dsLabels,
-                datasets: [{
-                    label: "Drawdown",
-                    data: dsDd,
-                    borderColor: "#ef4444",
-                    backgroundColor: "rgba(239, 68, 68, 0.1)",
-                    fill: true,
-                    borderWidth: 1.5,
-                    pointRadius: 0,
-                    tension: 0.3,
-                }],
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { display: false },
-                    tooltip: {
-                        backgroundColor: "#1e293b",
-                        titleColor: "#f1f5f9",
-                        bodyColor: "#ef4444",
-                        borderColor: "rgba(239,68,68,0.2)",
-                        borderWidth: 1,
-                        padding: 12,
-                        callbacks: { label: ctx => `${ctx.raw.toFixed(2)}%` },
-                    },
-                },
-                scales: {
-                    x: {
-                        display: true,
-                        grid: { color: "rgba(99,102,241,0.06)" },
-                        ticks: { color: "#64748b", maxTicksLimit: 5, font: { size: 11 } },
-                    },
-                    y: {
-                        display: true,
-                        grid: { color: "rgba(99,102,241,0.06)" },
-                        ticks: {
-                            color: "#64748b",
-                            font: { size: 11 },
-                            callback: v => `${v.toFixed(1)}%`,
-                        },
-                        max: 0,
-                    },
-                },
-            },
-        });
-    }
-
-    // ─── Trade P&L Distribution ─────────────────────────────────────────
-    if (trades.length > 0) {
-        const pnls = trades.map(t => t.pnl);
-        const colors = pnls.map(p => p >= 0 ? "rgba(16, 185, 129, 0.8)" : "rgba(239, 68, 68, 0.8)");
-        const borders = pnls.map(p => p >= 0 ? "#10b981" : "#ef4444");
-
-        new Chart(document.getElementById("tradeDistChart"), {
-            type: "bar",
-            data: {
-                labels: trades.map((_, i) => `#${i + 1}`),
-                datasets: [{
-                    label: "P&L",
-                    data: pnls,
-                    backgroundColor: colors,
-                    borderColor: borders,
-                    borderWidth: 1,
-                    borderRadius: 3,
-                }],
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { display: false },
-                    tooltip: {
-                        backgroundColor: "#1e293b",
-                        titleColor: "#f1f5f9",
-                        bodyColor: "#94a3b8",
-                        borderColor: "rgba(99,102,241,0.2)",
-                        borderWidth: 1,
-                        padding: 12,
-                        callbacks: {
-                            label: ctx => `$${ctx.raw.toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
-                        },
-                    },
-                },
-                scales: {
-                    x: {
-                        grid: { display: false },
-                        ticks: { color: "#64748b", font: { size: 10 } },
-                    },
-                    y: {
-                        grid: { color: "rgba(99,102,241,0.06)" },
-                        ticks: {
-                            color: "#64748b",
-                            font: { size: 11 },
-                            callback: v => `$${v.toLocaleString()}`,
-                        },
-                    },
-                },
-            },
-        });
-
-        // ─── Trade Table ────────────────────────────────────────────────
-        const tbody = document.getElementById("tradeTableBody");
-        trades.forEach((t, i) => {
-            const tr = document.createElement("tr");
-            const pnlClass = t.pnl >= 0 ? "pnl-positive" : "pnl-negative";
-            const dirClass = t.direction === "LONG" ? "dir-long" : "dir-short";
-            const exitClass = t.exit_reason === "take_profit" ? "tp" : "sl";
-            const exitLabel = t.exit_reason === "take_profit" ? "TP" : "SL";
-            const entryTime = new Date(t.entry_time).toLocaleDateString("en-US", { month: "short", day: "numeric" });
-
-            tr.innerHTML = `
-                <td>${i + 1}</td>
-                <td class="${dirClass}">${t.direction}</td>
-                <td>${t.entry_price.toFixed(5)}</td>
-                <td>${t.exit_price.toFixed(5)}</td>
-                <td>${t.lots.toFixed(2)}</td>
-                <td class="${pnlClass}">$${t.pnl.toFixed(2)}</td>
-                <td class="${pnlClass}">${t.pnl_pips > 0 ? "+" : ""}${t.pnl_pips.toFixed(1)}</td>
-                <td><span class="exit-badge ${exitClass}">${exitLabel}</span></td>
-                <td>${t.bars_held}</td>
-            `;
-            tbody.appendChild(tr);
-        });
-
-        document.getElementById("tradeSummary").textContent =
-            `Avg Win: $${m.avg_win.toFixed(0)} | Avg Loss: $${Math.abs(m.avg_loss).toFixed(0)} | Avg Hold: ${m.avg_bars_held}h`;
-    }
-
-    // ─── Compliance Section ─────────────────────────────────────────────
-    const compGrid = document.getElementById("complianceGrid");
-    const checks = [
-        { label: "Max Drawdown", current: m.max_drawdown_pct, limit: 10.0, unit: "%" },
-        { label: "Profit Target", current: m.return_pct, limit: 10.0, unit: "%", inverse: true },
-        { label: "Trading Days", current: m.trading_days, limit: 4, unit: " days", inverse: true },
-    ];
-
-    checks.forEach(c => {
-        const passed = c.inverse ? c.current >= c.limit : c.current < c.limit;
-        const pct = c.inverse
-            ? Math.min(100, (c.current / c.limit) * 100)
-            : Math.min(100, (c.current / c.limit) * 100);
-        const barColor = passed ? "var(--accent-profit)" : "var(--accent-loss)";
-
-        const item = document.createElement("div");
-        item.className = "compliance-item";
-        item.innerHTML = `
-            <div class="compliance-item-header">
-                <span class="compliance-label">${c.label}</span>
-                <span class="compliance-status ${passed ? "pass" : "fail"}">${passed ? "PASS" : "FAIL"}</span>
-            </div>
-            <div class="compliance-bar-track">
-                <div class="compliance-bar-fill" style="width:${pct}%;background:${barColor}"></div>
-            </div>
-            <div class="compliance-values">
-                <span class="compliance-current">${typeof c.current === "number" ? c.current.toFixed(2) : c.current}${c.unit}</span>
-                <span class="compliance-limit">${c.limit}${c.unit} limit</span>
-            </div>
-        `;
-        compGrid.appendChild(item);
+    // Calculate P&L from journal
+    const journal = state.trade_journal || [];
+    let totalPnl = 0;
+    let wins = 0;
+    
+    journal.forEach(t => {
+        totalPnl += (t.pnl || 0);
+        if (t.pnl > 0) wins++;
     });
 
-})();
+    const valPnl = document.getElementById('valPnl');
+    valPnl.textContent = `${totalPnl >= 0 ? '+' : '-'}$${Math.abs(totalPnl).toLocaleString(undefined, {minimumFractionDigits: 2})}`;
+    valPnl.className = `metric-value ${totalPnl >= 0 ? 'profit' : 'loss'}`;
+
+    const winRate = journal.length > 0 ? (wins / journal.length * 100).toFixed(1) : 0;
+    document.getElementById('valWinRate').textContent = `Win Rate: ${winRate}%`;
+
+    // Progress Bar & Target Tracking
+    let progress = 0;
+    const isFunded = config.phase === "FUNDED";
+    let targetAmount = 0;
+    
+    if (isFunded) {
+        document.getElementById('valProfitLeft').textContent = `Status: Funded & Payout Ready`;
+        document.getElementById('valProgress').textContent = `Infinity`;
+        document.getElementById('progressFill').style.width = `100%`;
+    } else {
+        if (balance > 0 && targetPct > 0) {
+            targetAmount = balance * (targetPct / 100);
+            progress = Math.min((totalPnl / targetAmount) * 100, 100);
+            if (progress < 0) progress = 0;
+            
+            let amountLeft = targetAmount - totalPnl;
+            if (amountLeft < 0) amountLeft = 0;
+            
+            document.getElementById('valProfitLeft').textContent = `Profit Left: $${amountLeft.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
+        }
+        document.getElementById('valProgress').textContent = `${progress.toFixed(1)}%`;
+        document.getElementById('progressFill').style.width = `${progress}%`;
+    }
+
+    // Active Trades
+    const active = state.managed_positions || {};
+    const activeIds = Object.keys(active);
+    document.getElementById('activeCount').textContent = activeIds.length;
+    
+    const activeBody = document.getElementById('activeTradesBody');
+    if (activeIds.length === 0) {
+        activeBody.innerHTML = `<tr><td colspan="5" class="empty-state">No active trades. Scanning markets...</td></tr>`;
+    } else {
+        activeBody.innerHTML = '';
+        activeIds.forEach(id => {
+            const t = active[id];
+            const dir = t.direction === 1 ? 'LONG' : 'SHORT';
+            const dirCls = t.direction === 1 ? 'dir-long' : 'dir-short';
+            
+            let statusHtml = '<span class="status-tag">Open</span>';
+            if (t.breakeven_locked) {
+                statusHtml = '<span class="status-tag locked">BE Locked</span>';
+            }
+            if (t.pending_reason) {
+                statusHtml = '<span class="status-tag brain">Brain Exiting</span>';
+            }
+
+            activeBody.innerHTML += `
+                <tr>
+                    <td><strong>${t.pair}</strong></td>
+                    <td class="${dirCls}">${dir}</td>
+                    <td>${t.entry_price.toFixed(5)}</td>
+                    <td>${t.original_lots}</td>
+                    <td>${statusHtml}</td>
+                </tr>
+            `;
+        });
+    }
+
+    // Trade History (last 5)
+    const historyBody = document.getElementById('historyBody');
+    document.getElementById('historyCount').textContent = journal.length;
+    historyBody.innerHTML = '';
+    
+    const recent = journal.slice(-5).reverse();
+    if (recent.length === 0) {
+        historyBody.innerHTML = `<tr><td colspan="4" class="empty-state">No history yet.</td></tr>`;
+    } else {
+        recent.forEach(t => {
+            const pnlCls = t.pnl >= 0 ? 'pnl-pos' : 'pnl-neg';
+            const sign = t.pnl >= 0 ? '+' : '';
+            historyBody.innerHTML += `
+                <tr>
+                    <td><strong>${t.pair || '--'}</strong></td>
+                    <td>${new Date(t.exit_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</td>
+                    <td class="${pnlCls}">${sign}$${(t.pnl || 0).toFixed(2)}</td>
+                    <td>${t.reason.replace('_', ' ')}</td>
+                </tr>
+            `;
+        });
+    }
+
+    // Update Chart
+    updateChart(journal);
+}
+
+function initChart() {
+    const ctx = document.getElementById('equityChart').getContext('2d');
+    equityChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: [{
+                label: 'Realized P&L',
+                data: [],
+                borderColor: '#8B5CF6',
+                backgroundColor: 'rgba(139, 92, 246, 0.1)',
+                borderWidth: 2,
+                fill: true,
+                tension: 0.4,
+                pointRadius: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { display: false },
+                y: { 
+                    grid: { color: 'rgba(255,255,255,0.05)' },
+                    ticks: { color: '#94A3B8' }
+                }
+            }
+        }
+    });
+}
+
+function updateChart(journal) {
+    if (!equityChart || journal.length === 0) return;
+    
+    let cumPnl = 0;
+    const data = [0]; // start at 0
+    const labels = ['Start'];
+
+    journal.forEach((t, i) => {
+        cumPnl += (t.pnl || 0);
+        data.push(cumPnl);
+        labels.push(i+1);
+    });
+
+    equityChart.data.labels = labels;
+    equityChart.data.datasets[0].data = data;
+    
+    // Change color if negative
+    if (cumPnl < 0) {
+        equityChart.data.datasets[0].borderColor = '#EF4444';
+        equityChart.data.datasets[0].backgroundColor = 'rgba(239, 68, 68, 0.1)';
+    } else {
+        equityChart.data.datasets[0].borderColor = '#8B5CF6';
+        equityChart.data.datasets[0].backgroundColor = 'rgba(139, 92, 246, 0.1)';
+    }
+    
+    equityChart.update();
+}
+
+// Initialize
+initChart();
+fetchLiveState();
+// Poll every 3 seconds
+setInterval(fetchLiveState, 3000);
