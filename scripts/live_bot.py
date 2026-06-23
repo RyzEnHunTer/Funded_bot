@@ -26,7 +26,7 @@ from config.settings import (
 from data.mt5_loader import initialize_mt5, get_mt5_data
 from strategy.mt5_executor import execute_trade, close_all_positions, scale_out_position, modify_sl_tp, close_position
 from ml.features import compute_all_features, get_supertrend_direction
-from model.ml_predictor import MLPredictor
+from ml.predictor import MLPredictor
 from risk.session_filter import SessionFilter
 import requests
 from email.utils import parsedate_to_datetime
