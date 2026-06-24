@@ -28,11 +28,13 @@ from strategy.mt5_executor import execute_trade, close_all_positions, scale_out_
 from ml.features import compute_all_features, get_supertrend_direction
 from ml.predictor import MLPredictor
 from risk.session_filter import SessionFilter
+from risk.news_filter import NewsFilter
 import requests
 from email.utils import parsedate_to_datetime
 
 # Initialize components (London & NY Sessions: 07:00 - 21:00 UTC)
 session_filter = SessionFilter(require_overlap_only=False)
+news_filter = NewsFilter()
 
 def get_reliable_utc_time():
     """Fetches the exact global UTC time directly from Google's servers. 
@@ -48,7 +50,6 @@ def get_reliable_utc_time():
     # Fallback to local system clock if network is unreachable
     return datetime.now(timezone.utc)
 from risk.state_manager import BotState
-from risk.news_filter import NewsFilter
 from strategy.position_sizer import calculate_position_size
 
 def get_open_positions_count() -> int:
