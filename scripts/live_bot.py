@@ -301,6 +301,11 @@ def run_bot(state, login, balance):
                 potential_trades = []
                 
                 for pair in pairs:
+                    # ─── ANTI-STACKING FILTER: 1 TRADE PER PAIR ───
+                    active_pair_positions = [p for p in state.managed_positions.values() if p['pair'] == pair]
+                    if len(active_pair_positions) > 0:
+                        continue
+                        
                     try:
                         # Fetch last 4000 bars from MT5 (about 60 days of 15m)
                         df = get_mt5_data(pair, "15m", 4000)

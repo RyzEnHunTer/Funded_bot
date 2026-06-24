@@ -302,6 +302,11 @@ def run_sim(enable_exhaustion: bool, label: str):
         potential_trades = []
         
         for pair in pairs:
+            # ─── ANTI-STACKING FILTER: 1 TRADE PER PAIR ───
+            pair_open_positions = [p for p in open_positions if p.pair == pair]
+            if len(pair_open_positions) > 0:
+                continue
+                
             if timestamp not in all_probs[pair].index:
                 continue
                 
