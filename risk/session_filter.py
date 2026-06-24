@@ -30,7 +30,8 @@ class SessionFilter:
                  ny_close: time = time(21, 0),
                  block_friday_after: time = time(20, 0),
                  block_sunday_before: time = time(22, 0),
-                 require_overlap_only: bool = True):
+                 require_overlap_only: bool = True,
+                 london_only: bool = False):
         """
         Parameters
         ----------
@@ -44,6 +45,8 @@ class SessionFilter:
             Block new trades before this time on Sundays.
         require_overlap_only : bool
             If True, only trade during London/NY overlap (most liquid).
+        london_only : bool
+            If True, only trade during London session.
         """
         self.london_open = london_open
         self.london_close = london_close
@@ -52,6 +55,7 @@ class SessionFilter:
         self.block_friday_after = block_friday_after
         self.block_sunday_before = block_sunday_before
         self.require_overlap_only = require_overlap_only
+        self.london_only = london_only
 
     def is_tradeable(self, timestamp: datetime, symbol: str = None) -> bool:
         """
@@ -93,6 +97,9 @@ class SessionFilter:
             return us_open <= t <= us_close
 
         # Check session windows
+        if getattr(self, 'london_only', False):
+            return self.london_open <= t <= self.london_close
+            
         if self.require_overlap_only:
             # Only London/NY overlap
             overlap_start = max(self.london_open, self.ny_open)

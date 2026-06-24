@@ -31,8 +31,8 @@ from risk.session_filter import SessionFilter
 import requests
 from email.utils import parsedate_to_datetime
 
-# Initialize components
-session_filter = SessionFilter()
+# Initialize components (London Session Only: 07:00 - 16:00 UTC)
+session_filter = SessionFilter(london_only=True)
 
 def get_reliable_utc_time():
     """Fetches the exact global UTC time directly from Google's servers. 

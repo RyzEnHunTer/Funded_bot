@@ -113,13 +113,13 @@ def run_sim(enable_exhaustion: bool, label: str):
     print(f"  Timeline: {len(unified_index)} bars ({unified_index[0]} -> {unified_index[-1]})\n")
     
     # ─── 2. SETUP ENGINE ───
+    session_filter = SessionFilter(london_only=True)
     balance = INITIAL_BALANCE
     equity = INITIAL_BALANCE
     open_positions = []
     closed_trades = []
     
     risk_mgr = PropFirmManager(initial_balance=INITIAL_BALANCE)
-    session_filter = SessionFilter(require_overlap_only=False)
     
     daily_trades_count = 0
     last_trade_date = None
