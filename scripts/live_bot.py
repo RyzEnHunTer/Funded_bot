@@ -15,6 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import warnings
 warnings.filterwarnings("ignore")
 
+import pandas as pd
 import MetaTrader5 as mt5
 from config.settings import (
     PRIMARY_TIMEFRAME, ATR_MULTIPLIER, REWARD_RISK_RATIO, 
