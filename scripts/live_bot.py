@@ -341,6 +341,11 @@ def run_bot(state, login, balance):
                         prob_long = probas_df['prob_1'].iloc[0] if 'prob_1' in probas_df else 0.0
                         prob_short = probas_df['prob_-1'].iloc[0] if 'prob_-1' in probas_df else 0.0
                         
+                        # ─── ADX Volatility Filter ───
+                        # adx_centered = (ADX - 25) / 25. If >= 0, ADX >= 25 (Trending)
+                        adx_centered = df['adx_centered'].iloc[-1]
+                        is_trending = adx_centered >= 0.0
+                        
                         # ─── Exhaustion #1: ML Flip Brain ───
                         for t_str, mgr in list(state.managed_positions.items()):
                             if mgr['pair'] == pair and mgr.get('breakeven_locked', False):
@@ -356,9 +361,9 @@ def run_bot(state, login, balance):
                         st_dir = get_supertrend_direction(df).iloc[-1]
                         
                         signal = "NEUTRAL"
-                        if prob_long >= ML_LONG_THRESHOLD and st_dir == 1:
+                        if prob_long >= ML_LONG_THRESHOLD and st_dir == 1 and is_trending:
                             signal = "LONG"
-                        elif prob_short >= ML_SHORT_THRESHOLD and st_dir == -1:
+                        elif prob_short >= ML_SHORT_THRESHOLD and st_dir == -1 and is_trending:
                             signal = "SHORT"
                             
                         
