@@ -329,7 +329,8 @@ def run_bot(state, login, balance):
                         
                         # Session Filter (pass symbol for indices support)
                         if state.config.get("use_session_filter", True):
-                            if not session_filter.is_tradeable(current_time, symbol=pair):
+                            now_utc = get_reliable_utc_time()
+                            if not session_filter.is_tradeable(now_utc, symbol=pair):
                                 continue # Skip silently if off-session
                             
                         # Predict
